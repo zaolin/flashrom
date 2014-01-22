@@ -39,6 +39,7 @@
 #include "flashchips.h"
 #include "programmer.h"
 #include "hwaccess.h"
+#include "chipdrivers.h"
 
 const char flashrom_version[] = FLASHROM_VERSION;
 const char *chip_to_probe = NULL;
@@ -1387,6 +1388,45 @@ static int erase_and_write_block_helper(struct flashctx *flash,
 	return ret;
 }
 
+int operate_on_statusregister(struct flashctx *flash, const char *value) {
+   long status;
+   char *endptr;
+
+   if (flash->chip->bustype != BUS_SPI) {
+       msg_cerr("Flash is not on SPI bus. Can't operate on status register\n");
+       return 1;
+   }
+
+   if (value) {
+       /* Try to parse as hex then dec */
+       errno = 0;
+       status = strtol(value, &endptr, 0);
+       if (endptr == value || *endptr != '\0' || errno != 0) {
+           msg_cerr("Error parsing value %s for status register\n",
+                   value);
+           return 1;
+       }
+
+       if (status < 0 || status > 0xFF) {
+           msg_cerr("Invalid status register value: %s\n", value);
+           return 1;
+       }
+
+       if (spi_write_status_register(flash, status)) {
+           msg_cerr("spi_write_status_register failed\n");
+           return 1;
+       }
+
+       msg_cinfo("Wrote 0x%02lx to status register\n", status);
+   }
+
+   /* Read and print current value */
+   status = spi_read_status_register(flash);
+   msg_cinfo("Status register: 0x%02lx\n", status);
+
+   return 0;
+}
+
 static int walk_eraseregions(struct flashctx *flash, int erasefunction,
 			     int (*do_something) (struct flashctx *flash,
 						  unsigned int addr,
@@ -1904,7 +1944,7 @@ int chip_safety_check(const struct flashctx *flash, int force, int read_it, int 
  * Besides that, the function itself is a textbook example of abysmal code flow.
  */
 int doit(struct flashctx *flash, int force, const char *filename, int read_it,
-	 int write_it, int erase_it, int verify_it)
+	 int write_it, int erase_it, int verify_it, int statusreg_op, const char *statusreg_value)
 {
 	uint8_t *oldcontents;
 	uint8_t *newcontents;
@@ -1922,6 +1962,11 @@ int doit(struct flashctx *flash, int force, const char *filename, int read_it,
 		ret = 1;
 		goto out_nofree;
 	}
+
+    if (statusreg_op) {
+        ret = operate_on_statusregister(flash, statusreg_value);
+        goto out_nofree;
+    }
 
 	/* Given the existence of read locks, we want to unlock for read,
 	 * erase and write.

@@ -58,6 +58,8 @@ static void cli_classic_usage(const char *name)
 	       " -i | --image <name>                only flash image <name> from flash layout\n"
 	       " -o | --output <logfile>            log output to <logfile>\n"
 	       " -L | --list-supported              print supported devices\n"
+           " -P | --print-status                print status register\n"
+           " -W | --write-status <value>        write <value> to status register \n"
 #if CONFIG_PRINT_WIKI == 1
 	       " -z | --list-supported-wiki         print supported devices in wiki syntax\n"
 #endif
@@ -67,7 +69,7 @@ static void cli_classic_usage(const char *name)
 #if CONFIG_PRINT_WIKI == 1
 	         "-z, "
 #endif
-	         "-E, -r, -w, -v or no operation.\n"
+	         "-E, -r, -w, -v, -P, -W or no operation.\n"
 	       "If no operation is specified, flashrom will only probe for flash chips.\n");
 }
 
@@ -103,11 +105,12 @@ int main(int argc, char *argv[])
 	int list_supported_wiki = 0;
 #endif
 	int read_it = 0, write_it = 0, erase_it = 0, verify_it = 0;
+	int statusreg_op = 0;
 	int dont_verify_it = 0, list_supported = 0, operation_specified = 0;
 	enum programmer prog = PROGRAMMER_INVALID;
 	int ret = 0;
 
-	static const char optstring[] = "r:Rw:v:nVEfc:l:i:p:Lzho:";
+	static const char optstring[] = "r:Rw:v:nVEfc:l:i:p:LzhoPW:";
 	static const struct option long_options[] = {
 		{"read",		1, NULL, 'r'},
 		{"write",		1, NULL, 'w'},
@@ -120,6 +123,8 @@ int main(int argc, char *argv[])
 		{"layout",		1, NULL, 'l'},
 		{"image",		1, NULL, 'i'},
 		{"list-supported",	0, NULL, 'L'},
+		{"print-status",    0, NULL, 'P'},
+        {"write-status",    1, NULL, 'W'},
 		{"list-supported-wiki",	0, NULL, 'z'},
 		{"programmer",		1, NULL, 'p'},
 		{"help",		0, NULL, 'h'},
@@ -135,6 +140,7 @@ int main(int argc, char *argv[])
 #endif /* !STANDALONE */
 	char *tempstr = NULL;
 	char *pparam = NULL;
+	char *statusreg_value = NULL;
 
 	print_version();
 	print_banner();
@@ -230,6 +236,23 @@ int main(int argc, char *argv[])
 			}
 			list_supported = 1;
 			break;
+		case 'P':
+            if (++operation_specified > 1) {
+                fprintf(stderr, "More than one operation "
+                    "specified. Aborting.\n");
+                cli_classic_abort_usage();
+            }
+            statusreg_op = 1;
+            break;
+        case 'W':
+            if (++operation_specified > 1) {
+                fprintf(stderr, "More than one operation "
+                   "specified. Aborting.\n");
+                cli_classic_abort_usage();
+            }
+            statusreg_op = 1;
+            statusreg_value = strdup(optarg);
+            break;
 		case 'z':
 #if CONFIG_PRINT_WIKI == 1
 			if (++operation_specified > 1) {
@@ -507,7 +530,7 @@ int main(int argc, char *argv[])
 		goto out_shutdown;
 	}
 
-	if (!(read_it | write_it | verify_it | erase_it)) {
+	if (!(read_it | write_it | verify_it | erase_it | statusreg_op)) {
 		msg_ginfo("No operations were specified.\n");
 		goto out_shutdown;
 	}
@@ -521,7 +544,7 @@ int main(int argc, char *argv[])
 	 * Give the chip time to settle.
 	 */
 	programmer_delay(100000);
-	ret |= doit(fill_flash, force, filename, read_it, write_it, erase_it, verify_it);
+	ret |= doit(fill_flash, force, filename, read_it, write_it, erase_it, verify_it, statusreg_op, statusreg_value);
 	/* Note: doit() already calls programmer_shutdown(). */
 	goto out;
 

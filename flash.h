@@ -260,7 +260,7 @@ void print_buildinfo(void);
 void print_banner(void);
 void list_programmers_linebreak(int startcol, int cols, int paren);
 int selfcheck(void);
-int doit(struct flashctx *flash, int force, const char *filename, int read_it, int write_it, int erase_it, int verify_it);
+int doit(struct flashctx *flash, int force, const char *filename, int read_it, int write_it, int erase_it, int verify_it, int statureg_op, const char *statusreg_op);
 int read_buf_from_file(unsigned char *buf, unsigned long size, const char *filename);
 int write_buf_to_file(unsigned char *buf, unsigned long size, const char *filename);
 
